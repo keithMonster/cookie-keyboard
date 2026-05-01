@@ -245,20 +245,30 @@
   </a>
 </div>
 
-<div class="footer">按 1 / 2 / 3 / 4 快速进入</div>
+<div class="footer">按 1-4 选游戏 · 任意键随机进入</div>
 
 <script>
-  // 数字键快速跳转
   const tiles = document.querySelectorAll('.tile');
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey) return;
+
+    // 数字键 1-4：精确跳转
     const idx = parseInt(e.key, 10);
     if (idx >= 1 && idx <= tiles.length) {
       const tile = tiles[idx - 1];
       if (tile) {
         e.preventDefault();
         location.href = tile.getAttribute('href');
+        return;
       }
+    }
+
+    // 任意可打印字符 / Enter / Space：随机进入一款
+    // Cookie 还不会用鼠标，拍键就能玩
+    if (e.key.length === 1 || e.key === 'Enter') {
+      e.preventDefault();
+      const random = tiles[Math.floor(Math.random() * tiles.length)];
+      location.href = random.getAttribute('href');
     }
   });
 </script>
