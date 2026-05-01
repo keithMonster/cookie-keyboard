@@ -12,7 +12,6 @@ https://keithmonster.github.io/cookie-keyboard/
 
 - **Press any key** → random colored shape pops up (circle / square / star / heart / hexagon / moon / etc.)
 - **Sound** → piano note synthesized via Web Audio API, mapped to a C-major scale
-- **Voice** → color name spoken via SpeechSynthesis (Chinese)
 - **Cleanup** → at most 8 shapes on screen at once, oldest fades out
 
 ## Local

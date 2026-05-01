@@ -139,19 +139,6 @@
     osc.stop(now + 0.9);
   }
 
-  // ========= TTS =========
-  function speak(text) {
-    if (!('speechSynthesis' in window)) return;
-    // 节流——婴儿乱拍会堆队列
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'zh-CN';
-    u.volume = 0.7;
-    u.rate = 1.0;
-    u.pitch = 1.1;
-    speechSynthesis.speak(u);
-  }
-
   // ========= 全屏 =========
   function tryFullscreen() {
     const el = document.documentElement;
@@ -197,10 +184,9 @@
       removeShape(liveShapes[0]);
     }
 
-    // 音 + 语
+    // 音
     const idx = hash(key) % SCALE_HZ.length;
     playNote(SCALE_HZ[idx]);
-    speak(color.name);
   }
 
   function removeShape(el) {
