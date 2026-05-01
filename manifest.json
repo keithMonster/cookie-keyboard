@@ -1,0 +1,13 @@
+{
+  "name": "Cookie's Arcade",
+  "short_name": "Cookie",
+  "description": "A toddler-friendly mini-game collection.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0a0e27",
+  "background_color": "#0a0e27",
+  "lang": "zh-CN",
+  "icons": []
+}

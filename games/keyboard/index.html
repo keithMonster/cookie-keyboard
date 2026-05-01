@@ -2,8 +2,11 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cookie's Keyboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Keyboard Smash · Cookie's Arcade</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -15,6 +18,13 @@
     -webkit-user-select: none;
     transition: background-color 80ms ease-out;
     font-family: -apple-system, "PingFang SC", sans-serif;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* 触屏设备：返回按钮始终半可见（无 hover） */
+  @media (hover: none) {
+    #back { color: rgba(255, 255, 255, 0.4) !important; }
   }
   /* 返回入口 hot zone */
   #back {
@@ -278,7 +288,7 @@
   }
 
   // ========= 形状 spawn =========
-  function spawnShape(key) {
+  function spawnShape(key, atX, atY) {
     const color = pick(COLORS);
     const shape = pick(SHAPES);
     const isRare = Math.random() < RARE_PROB;
@@ -287,8 +297,15 @@
     if (isRare) sizeVw *= 1.6;
     const sizePx = window.innerWidth * sizeVw / 100;
 
-    const x = rand(STAGE_PADDING, Math.max(STAGE_PADDING + 1, window.innerWidth  - sizePx - STAGE_PADDING));
-    const y = rand(STAGE_PADDING, Math.max(STAGE_PADDING + 1, window.innerHeight - sizePx - STAGE_PADDING));
+    // 如果传入位置（点击/触摸），以位置为形状中心；否则随机
+    let x, y;
+    if (typeof atX === 'number' && typeof atY === 'number') {
+      x = Math.max(STAGE_PADDING, Math.min(atX - sizePx / 2, window.innerWidth  - sizePx - STAGE_PADDING));
+      y = Math.max(STAGE_PADDING, Math.min(atY - sizePx / 2, window.innerHeight - sizePx - STAGE_PADDING));
+    } else {
+      x = rand(STAGE_PADDING, Math.max(STAGE_PADDING + 1, window.innerWidth  - sizePx - STAGE_PADDING));
+      y = rand(STAGE_PADDING, Math.max(STAGE_PADDING + 1, window.innerHeight - sizePx - STAGE_PADDING));
+    }
 
     // 随机一种长程行为
     const behavior = pick(BEHAVIORS);
@@ -378,11 +395,19 @@
     spawnShape(e.key || e.code);
   });
 
-  // 鼠标点击也能玩（万一 Cookie 拍触摸板）
-  document.addEventListener('click', () => {
+  // 鼠标点击 / iPad 戳屏：在点击位置生成形状
+  document.addEventListener('click', (e) => {
     handleFirstKey();
-    spawnShape('click_' + Date.now());
+    spawnShape('click_' + Date.now(), e.clientX, e.clientY);
   });
+  // iPad 触摸：每个手指都触发一次（多指齐戳很爽）
+  document.addEventListener('touchstart', (e) => {
+    handleFirstKey();
+    for (const t of e.changedTouches) {
+      spawnShape('touch_' + Date.now() + '_' + t.identifier, t.clientX, t.clientY);
+    }
+    e.preventDefault();
+  }, { passive: false });
 
   // 窗口尺寸变化——清场免得形状错位
   window.addEventListener('resize', () => {

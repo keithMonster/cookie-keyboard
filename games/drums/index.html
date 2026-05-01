@@ -2,7 +2,10 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Drum Pad · Cookie's Arcade</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -15,6 +18,12 @@
     -webkit-user-select: none;
     transition: background-color 100ms ease-out;
     font-family: -apple-system, "PingFang SC", sans-serif;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (hover: none) {
+    #back { color: rgba(255, 255, 255, 0.4) !important; }
   }
   body.beat-drum   { background: #2a0e0e; }
   body.beat-cymbal { background: #2a280e; }
@@ -201,9 +210,10 @@
     setTimeout(() => document.body.classList.remove(cls), 100);
   }
 
-  function spawnBlob(family, color) {
-    const cx = rand(window.innerWidth * 0.2,  window.innerWidth * 0.8);
-    const cy = rand(window.innerHeight * 0.2, window.innerHeight * 0.8);
+  function spawnBlob(family, color, atX, atY) {
+    // 给了位置就用位置，否则随机
+    const cx = (typeof atX === 'number') ? atX : rand(window.innerWidth * 0.2,  window.innerWidth * 0.8);
+    const cy = (typeof atY === 'number') ? atY : rand(window.innerHeight * 0.2, window.innerHeight * 0.8);
 
     if (family === 'drum') {
       // 实心填色圆 + 同心环
@@ -305,6 +315,32 @@
     flashBeat('beat-' + family);
   }
 
+  // 按位置触发（鼠标点击 / 触屏）
+  // 屏幕分上中下三区：上=鼓 / 中=镲 / 下=钟；x 位置决定 variant
+  function handleAt(x, y) {
+    const yRatio = y / window.innerHeight;
+    const xRatio = x / window.innerWidth;
+    let family, color;
+    const sub = Math.floor(xRatio * 8) % 8; // x 位置映射 variant 0-7
+
+    if (yRatio < 0.34) {
+      family = 'drum';
+      color = pick(DRUM_COLORS);
+      playDrum(sub);
+    } else if (yRatio < 0.67) {
+      family = 'cymbal';
+      color = pick(CYMBAL_COLORS);
+      playCymbal(sub);
+    } else {
+      family = 'bell';
+      color = pick(BELL_COLORS);
+      playBell(sub);
+    }
+
+    spawnBlob(family, color, x, y);
+    flashBeat('beat-' + family);
+  }
+
   function start() {
     if (started) return;
     started = true;
@@ -331,10 +367,18 @@
     handleKey(e.key);
   });
 
-  document.addEventListener('click', () => {
+  // 鼠标点击 / iPad 戳屏：按位置触发
+  document.addEventListener('click', (e) => {
     start();
-    handleKey(String.fromCharCode(65 + Math.floor(Math.random() * 26)));
+    handleAt(e.clientX, e.clientY);
   });
+  document.addEventListener('touchstart', (e) => {
+    start();
+    for (const t of e.changedTouches) {
+      handleAt(t.clientX, t.clientY);
+    }
+    e.preventDefault();
+  }, { passive: false });
 </script>
 </body>
 </html>

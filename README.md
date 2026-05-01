@@ -17,10 +17,19 @@ https://keithmonster.github.io/cookie-keyboard/
 
 ## Navigation
 
-- Click a tile or press `1` / `2` / `3` / `4` to enter a game
-- Inside a game: `Esc` returns to the home screen (or hover the top-right corner for a back button)
+- Click / tap a tile, press `1` / `2` / `3` / `4` for an exact game, or any other key for a random game
+- Inside a game: `Esc` (twice if in fullscreen — first exits fullscreen) or tap the top-right corner returns to home
 - `F` toggles fullscreen
 - `Cmd+Q` quits the browser
+
+## On iPad
+
+Open the live URL in Safari → tap **Share → Add to Home Screen**. The arcade installs as a standalone full-screen "app" with no Safari UI. All four games respond to touch:
+
+- **Keyboard Smash** — tap anywhere, shape spawns at your finger
+- **Pop Bubbles** — drag your finger across bubbles to pop them
+- **Drum Pad** — tap the top third for drums, middle for cymbals, bottom for chimes
+- **Color Cascade** — tap anywhere; multi-touch triggers multiple colors
 
 ## Local
 
