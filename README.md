@@ -4,7 +4,7 @@ A toddler-friendly mini-game collection for a 1-year-old who loves smashing the 
 
 ## Live
 
-https://keithmonster.github.io/cookie-keyboard/
+https://keithmonster.github.io/cookie-arcade/
 
 ## Games
 
