@@ -10,8 +10,11 @@ https://keithmonster.github.io/cookie-keyboard/
 
 ## How it works
 
-- **Press any key** → random colored shape pops up (circle / square / star / heart / hexagon / moon / etc.)
+- **Press any key** → random colored shape pops up + particle burst + background pulse
+- **Shape behavior** → each shape randomly drifts / spins / falls (kept alive by motion)
 - **Sound** → piano note synthesized via Web Audio API, mapped to a C-major scale
+- **Space bar** → full-screen firework with C-E-G chord (Keith can demo this for Cookie)
+- **Rare** → 1% chance of an oversized shape (1.6×)
 - **Cleanup** → at most 8 shapes on screen at once, oldest fades out
 
 ## Local

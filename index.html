@@ -14,23 +14,61 @@
     cursor: none;
     user-select: none;
     -webkit-user-select: none;
+    transition: background-color 80ms ease-out;
+  }
+  body.beat {
+    background: #18204a;
   }
   #stage {
     position: fixed;
     inset: 0;
     overflow: hidden;
   }
-  .shape {
+
+  /* 外层 wrap：长程行为（drift / spin / fall） */
+  .shape-wrap {
     position: absolute;
     pointer-events: none;
+    will-change: transform;
+  }
+  .shape-wrap.drift {
+    animation: drift 8s ease-in-out infinite;
+  }
+  .shape-wrap.spin {
+    animation: spin 5s linear infinite;
+  }
+  .shape-wrap.fall {
+    animation: fall 5s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  }
+
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0); }
+    25%      { transform: translate(40px, -25px); }
+    50%      { transform: translate(-30px, 35px); }
+    75%      { transform: translate(25px, 20px); }
+  }
+  @keyframes spin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes fall {
+    0%   { transform: translate(0, 0)             rotate(0deg); }
+    100% { transform: translate(0, var(--fall-dist, 600px)) rotate(120deg); }
+  }
+
+  /* 内层 shape：pop-in + pulse */
+  .shape {
+    position: relative;
+    width: 100%;
+    height: 100%;
     transform-origin: center center;
-    will-change: transform, opacity;
     animation: pop-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
                pulse 2.5s ease-in-out 200ms infinite;
   }
-  .shape.leaving {
+  .shape-wrap.leaving .shape {
     animation: pop-out 600ms ease-in forwards;
   }
+
   @keyframes pop-in {
     0%   { transform: scale(0)    rotate(0deg); opacity: 0; }
     60%  { transform: scale(1.15) rotate(8deg); opacity: 1; }
@@ -44,6 +82,21 @@
     0%   { transform: scale(1);   opacity: 1; }
     100% { transform: scale(1.6); opacity: 0; }
   }
+
+  /* 粒子 */
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    will-change: transform, opacity;
+    animation: particle-fly 1.1s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  }
+  @keyframes particle-fly {
+    0%   { transform: translate(0, 0)              scale(1);   opacity: 1; }
+    70%  {                                                     opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+  }
+
   /* 启动提示——首次按键即消失 */
   #hint {
     position: fixed;
@@ -63,40 +116,40 @@
 </head>
 <body>
 <div id="stage"></div>
-<div id="hint">按 任意键 开始 · F 全屏 · Cmd+Q 退出</div>
+<div id="hint">按 任意键 开始 · F 全屏 · Space 烟花 · Cmd+Q 退出</div>
 
 <script>
   // ========= 配置 =========
   const COLORS = [
-    { hex: '#ff5252', name: '红色' },
-    { hex: '#ffb74d', name: '橙色' },
-    { hex: '#ffeb3b', name: '黄色' },
-    { hex: '#66bb6a', name: '绿色' },
-    { hex: '#4dd0e1', name: '青色' },
-    { hex: '#5c9eff', name: '蓝色' },
-    { hex: '#ba68c8', name: '紫色' },
-    { hex: '#f48fb1', name: '粉色' },
-    { hex: '#ffffff', name: '白色' },
+    { hex: '#ff5252' }, { hex: '#ffb74d' }, { hex: '#ffeb3b' },
+    { hex: '#66bb6a' }, { hex: '#4dd0e1' }, { hex: '#5c9eff' },
+    { hex: '#ba68c8' }, { hex: '#f48fb1' }, { hex: '#ffffff' },
   ];
 
   // SVG path data，viewBox 0 0 100 100
   const SHAPES = [
-    { name: '圆形',   path: 'M50,5 A45,45 0 1,1 49.99,5 Z' },
-    { name: '方形',   path: 'M10,10 H90 V90 H10 Z' },
-    { name: '三角',   path: 'M50,8 L92,88 L8,88 Z' },
-    { name: '星星',   path: 'M50,5 L61,38 L96,38 L68,59 L78,92 L50,72 L22,92 L32,59 L4,38 L39,38 Z' },
-    { name: '爱心',   path: 'M50,85 C20,65 5,45 5,28 C5,15 15,5 28,5 C38,5 45,12 50,22 C55,12 62,5 72,5 C85,5 95,15 95,28 C95,45 80,65 50,85 Z' },
-    { name: '六边形', path: 'M50,5 L88,28 L88,72 L50,95 L12,72 L12,28 Z' },
-    { name: '菱形',   path: 'M50,5 L92,50 L50,95 L8,50 Z' },
-    { name: '月亮',   path: 'M65,15 A40,40 0 1,0 65,85 A30,30 0 1,1 65,15 Z' },
+    { path: 'M50,5 A45,45 0 1,1 49.99,5 Z' },                                              // 圆形
+    { path: 'M10,10 H90 V90 H10 Z' },                                                       // 方形
+    { path: 'M50,8 L92,88 L8,88 Z' },                                                       // 三角
+    { path: 'M50,5 L61,38 L96,38 L68,59 L78,92 L50,72 L22,92 L32,59 L4,38 L39,38 Z' },     // 星星
+    { path: 'M50,85 C20,65 5,45 5,28 C5,15 15,5 28,5 C38,5 45,12 50,22 C55,12 62,5 72,5 C85,5 95,15 95,28 C95,45 80,65 50,85 Z' }, // 爱心
+    { path: 'M50,5 L88,28 L88,72 L50,95 L12,72 L12,28 Z' },                                 // 六边形
+    { path: 'M50,5 L92,50 L50,95 L8,50 Z' },                                                // 菱形
+    { path: 'M65,15 A40,40 0 1,0 65,85 A30,30 0 1,1 65,15 Z' },                             // 月亮
   ];
 
   // C 大调 8 音（C4 - C5）
   const SCALE_HZ = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
 
+  // 形状行为
+  const BEHAVIORS = ['drift', 'spin', 'fall'];
+
   const MAX_SHAPES = 8;
   const SHAPE_LIFETIME_MS = 4500;
   const STAGE_PADDING = 80;
+  const RARE_PROB = 0.01;       // 稀有大形状概率
+  const PARTICLES_PER_SHAPE = 8;
+  const FIREWORK_PARTICLES = 36;
 
   // ========= 状态 =========
   const stage = document.getElementById('stage');
@@ -122,21 +175,27 @@
     if (audioCtx.state === 'suspended') audioCtx.resume();
   }
 
-  function playNote(freq) {
+  function playNote(freq, gainPeak = 0.3) {
     ensureAudio();
     const now = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = 'sine';
     osc.frequency.value = freq;
-    // ADSR 信封——温和钢琴味
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.3, now + 0.02);
-    gain.gain.linearRampToValueAtTime(0.18, now + 0.1);
+    gain.gain.linearRampToValueAtTime(gainPeak, now + 0.02);
+    gain.gain.linearRampToValueAtTime(gainPeak * 0.6, now + 0.1);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
     osc.connect(gain).connect(audioCtx.destination);
     osc.start(now);
     osc.stop(now + 0.9);
+  }
+
+  // C-E-G 和弦——空格烟花专属
+  function playChord() {
+    playNote(SCALE_HZ[0], 0.22);
+    setTimeout(() => playNote(SCALE_HZ[2], 0.22), 60);
+    setTimeout(() => playNote(SCALE_HZ[4], 0.22), 120);
   }
 
   // ========= 全屏 =========
@@ -147,42 +206,104 @@
     }
   }
 
+  // ========= 背景律动 =========
+  function flashBackground() {
+    document.body.classList.add('beat');
+    setTimeout(() => document.body.classList.remove('beat'), 90);
+  }
+
+  // ========= 粒子 =========
+  function spawnParticles(cx, cy, color, count, distRange = [100, 220]) {
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = rand(8, 14);
+      p.style.left = (cx - size / 2) + 'px';
+      p.style.top  = (cy - size / 2) + 'px';
+      p.style.width  = size + 'px';
+      p.style.height = size + 'px';
+      p.style.background = color;
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+      const dist  = rand(distRange[0], distRange[1]);
+      p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      stage.appendChild(p);
+      setTimeout(() => p.remove(), 1200);
+    }
+  }
+
+  // ========= 满屏烟花（空格键专属） =========
+  function spawnFirework() {
+    const cx = window.innerWidth  / 2;
+    const cy = window.innerHeight / 2;
+    for (let i = 0; i < FIREWORK_PARTICLES; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = rand(12, 20);
+      p.style.left = (cx - size / 2) + 'px';
+      p.style.top  = (cy - size / 2) + 'px';
+      p.style.width  = size + 'px';
+      p.style.height = size + 'px';
+      p.style.background = pick(COLORS).hex;
+      const angle = (i / FIREWORK_PARTICLES) * Math.PI * 2 + Math.random() * 0.15;
+      const dist  = rand(220, 520);
+      p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      stage.appendChild(p);
+      setTimeout(() => p.remove(), 1200);
+    }
+    playChord();
+    flashBackground();
+  }
+
   // ========= 形状 spawn =========
   function spawnShape(key) {
     const color = pick(COLORS);
     const shape = pick(SHAPES);
+    const isRare = Math.random() < RARE_PROB;
 
-    const sizeVw = rand(18, 28); // 视口宽度的 18-28%
+    let sizeVw = rand(18, 28);
+    if (isRare) sizeVw *= 1.6;
     const sizePx = window.innerWidth * sizeVw / 100;
 
-    const x = rand(STAGE_PADDING, window.innerWidth  - sizePx - STAGE_PADDING);
-    const y = rand(STAGE_PADDING, window.innerHeight - sizePx - STAGE_PADDING);
+    const x = rand(STAGE_PADDING, Math.max(STAGE_PADDING + 1, window.innerWidth  - sizePx - STAGE_PADDING));
+    const y = rand(STAGE_PADDING, Math.max(STAGE_PADDING + 1, window.innerHeight - sizePx - STAGE_PADDING));
+
+    // 随机一种长程行为
+    const behavior = pick(BEHAVIORS);
 
     const wrap = document.createElement('div');
-    wrap.className = 'shape';
+    wrap.className = 'shape-wrap ' + behavior;
     wrap.style.left = x + 'px';
     wrap.style.top  = y + 'px';
     wrap.style.width  = sizePx + 'px';
     wrap.style.height = sizePx + 'px';
+    // fall 行为：落地距离
+    wrap.style.setProperty('--fall-dist', (window.innerHeight - y - sizePx + 60) + 'px');
 
-    wrap.innerHTML = `
-      <svg viewBox="0 0 100 100" width="100%" height="100%"
-           xmlns="http://www.w3.org/2000/svg">
+    const inner = document.createElement('div');
+    inner.className = 'shape';
+    inner.innerHTML = `
+      <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
         <path d="${shape.path}" fill="${color.hex}"
               stroke="rgba(0,0,0,0.15)" stroke-width="1"/>
       </svg>
     `;
+    wrap.appendChild(inner);
 
     stage.appendChild(wrap);
     liveShapes.push(wrap);
 
-    // 自然消亡
     setTimeout(() => removeShape(wrap), SHAPE_LIFETIME_MS);
-
-    // 容量上限——溢出删最旧
     while (liveShapes.length > MAX_SHAPES) {
       removeShape(liveShapes[0]);
     }
+
+    // 粒子尾迹（中心向外辐射）
+    spawnParticles(x + sizePx / 2, y + sizePx / 2, color.hex, PARTICLES_PER_SHAPE);
+
+    // 背景律动
+    flashBackground();
 
     // 音
     const idx = hash(key) % SCALE_HZ.length;
@@ -198,18 +319,20 @@
   }
 
   // ========= 输入处理 =========
+  function handleFirstKey() {
+    if (!firstKey) return;
+    firstKey = false;
+    hint.classList.add('gone');
+    setTimeout(() => hint.remove(), 800);
+    tryFullscreen();
+  }
+
   document.addEventListener('keydown', (e) => {
     // Cmd / Ctrl 组合键放过去（让 Keith 还能 Cmd+Q）
     if (e.metaKey || e.ctrlKey) return;
 
     e.preventDefault();
-
-    if (firstKey) {
-      firstKey = false;
-      hint.classList.add('gone');
-      setTimeout(() => hint.remove(), 800);
-      tryFullscreen();
-    }
+    handleFirstKey();
 
     // F 单独触发全屏
     if (e.key === 'f' || e.key === 'F') {
@@ -217,17 +340,18 @@
       return;
     }
 
+    // 空格键专属：满屏烟花
+    if (e.code === 'Space') {
+      spawnFirework();
+      return;
+    }
+
     spawnShape(e.key || e.code);
   });
 
   // 鼠标点击也能玩（万一 Cookie 拍触摸板）
-  document.addEventListener('click', (e) => {
-    if (firstKey) {
-      firstKey = false;
-      hint.classList.add('gone');
-      setTimeout(() => hint.remove(), 800);
-      tryFullscreen();
-    }
+  document.addEventListener('click', () => {
+    handleFirstKey();
     spawnShape('click_' + Date.now());
   });
 
