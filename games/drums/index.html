@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drum Pad · Cookie's Arcade</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0e27;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color 100ms ease-out;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+  body.beat-drum   { background: #2a0e0e; }
+  body.beat-cymbal { background: #2a280e; }
+  body.beat-bell   { background: #0e1a2a; }
+
+  #stage {
+    position: fixed; inset: 0; overflow: hidden;
+  }
+
+  .blob {
+    position: absolute;
+    pointer-events: none;
+    will-change: transform, opacity;
+    animation: blob-life 800ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  }
+  @keyframes blob-life {
+    0%   { transform: scale(0)    rotate(0deg);   opacity: 0; }
+    20%  { transform: scale(1.3)  rotate(20deg);  opacity: 1; }
+    50%  { transform: scale(1.0)  rotate(0deg);   opacity: 0.95; }
+    100% { transform: scale(1.8)  rotate(-10deg); opacity: 0; }
+  }
+
+  /* 节拍环（鼓特有） */
+  .ring {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    border: 4px solid;
+    will-change: transform, opacity;
+    animation: ring-life 700ms ease-out forwards;
+  }
+  @keyframes ring-life {
+    0%   { transform: scale(0.3); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  /* 返回 */
+  #back {
+    position: fixed; top: 0; right: 0;
+    width: 70px; height: 70px;
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    color: rgba(255, 255, 255, 0.08);
+    text-decoration: none;
+    transition: color 250ms, background 250ms;
+  }
+  #back:hover {
+    color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  #hint {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 22px;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    transition: opacity 600ms;
+    text-align: center;
+    line-height: 1.6;
+  }
+  #hint.gone { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<a id="back" href="../../">←</a>
+<div id="hint">按 任意键 打鼓<br>上排=鼓 · 中排=镲 · 下排=钢片琴 · Esc 返回</div>
+
+<script>
+  const stage = document.getElementById('stage');
+  const hint = document.getElementById('hint');
+  let audioCtx = null;
+  let started = false;
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  // 三排键映射
+  const TOP_ROW = ['q','w','e','r','t','y','u','i','o','p'];
+  const MID_ROW = ['a','s','d','f','g','h','j','k','l'];
+  const BOT_ROW = ['z','x','c','v','b','n','m'];
+
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  // ===== 三种乐器音色 =====
+
+  // 鼓（kick / tom）：低频 sine + frequency drop + 噪声 attack
+  function playDrum(variantIdx) {
+    ensureAudio();
+    const now = audioCtx.currentTime;
+    const baseFreq = 80 + variantIdx * 8; // 80-160 Hz
+    // 主体 sine
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(baseFreq * 2.5, now);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq, now + 0.08);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.5, now + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.42);
+    // 噪声 attack 增加击打感
+    const noise = createNoiseBurst(0.04, 0.15);
+    noise.start(now);
+    noise.stop(now + 0.05);
+  }
+
+  // 镲：白噪声 + 高通 + 短 decay
+  function playCymbal(variantIdx) {
+    ensureAudio();
+    const now = audioCtx.currentTime;
+    const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.3, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 4000 + variantIdx * 200;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2 + variantIdx * 0.02);
+    src.connect(filter).connect(gain).connect(audioCtx.destination);
+    src.start(now);
+    src.stop(now + 0.35);
+  }
+
+  // 钢片琴：高频 sine + 长 decay，按位置映射音阶
+  // C 大调 8 度（C5-C6）
+  const BELL_HZ = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77, 1046.50];
+  function playBell(variantIdx) {
+    ensureAudio();
+    const now = audioCtx.currentTime;
+    const freq = BELL_HZ[variantIdx % BELL_HZ.length];
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 1.6);
+    // 第二谐波（更亮）
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.value = freq * 2;
+    gain2.gain.setValueAtTime(0, now);
+    gain2.gain.linearRampToValueAtTime(0.08, now + 0.005);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+    osc2.connect(gain2).connect(audioCtx.destination);
+    osc2.start(now);
+    osc2.stop(now + 1.05);
+  }
+
+  function createNoiseBurst(duration, gainPeak) {
+    const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * duration, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const gain = audioCtx.createGain();
+    gain.gain.value = gainPeak;
+    src.connect(gain).connect(audioCtx.destination);
+    return src;
+  }
+
+  // ===== 视觉 =====
+
+  function flashBeat(cls) {
+    document.body.classList.add(cls);
+    setTimeout(() => document.body.classList.remove(cls), 100);
+  }
+
+  function spawnBlob(family, color) {
+    const cx = rand(window.innerWidth * 0.2,  window.innerWidth * 0.8);
+    const cy = rand(window.innerHeight * 0.2, window.innerHeight * 0.8);
+
+    if (family === 'drum') {
+      // 实心填色圆 + 同心环
+      const size = rand(180, 280);
+      const blob = document.createElement('div');
+      blob.className = 'blob';
+      blob.style.left = (cx - size / 2) + 'px';
+      blob.style.top  = (cy - size / 2) + 'px';
+      blob.style.width  = size + 'px';
+      blob.style.height = size + 'px';
+      blob.style.borderRadius = '50%';
+      blob.style.background = `radial-gradient(circle, ${color} 30%, transparent 70%)`;
+      stage.appendChild(blob);
+      setTimeout(() => blob.remove(), 850);
+
+      // 节拍环
+      const ringSize = size * 1.2;
+      const ring = document.createElement('div');
+      ring.className = 'ring';
+      ring.style.left = (cx - ringSize / 2) + 'px';
+      ring.style.top  = (cy - ringSize / 2) + 'px';
+      ring.style.width  = ringSize + 'px';
+      ring.style.height = ringSize + 'px';
+      ring.style.borderColor = color;
+      stage.appendChild(ring);
+      setTimeout(() => ring.remove(), 750);
+    }
+    else if (family === 'cymbal') {
+      // 星状 SVG
+      const size = rand(150, 240);
+      const blob = document.createElement('div');
+      blob.className = 'blob';
+      blob.style.left = (cx - size / 2) + 'px';
+      blob.style.top  = (cy - size / 2) + 'px';
+      blob.style.width  = size + 'px';
+      blob.style.height = size + 'px';
+      blob.innerHTML = `<svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50,5 L61,38 L96,38 L68,59 L78,92 L50,72 L22,92 L32,59 L4,38 L39,38 Z"
+              fill="${color}" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+      </svg>`;
+      stage.appendChild(blob);
+      setTimeout(() => blob.remove(), 850);
+    }
+    else if (family === 'bell') {
+      // 圆角方
+      const size = rand(140, 220);
+      const blob = document.createElement('div');
+      blob.className = 'blob';
+      blob.style.left = (cx - size / 2) + 'px';
+      blob.style.top  = (cy - size / 2) + 'px';
+      blob.style.width  = size + 'px';
+      blob.style.height = size + 'px';
+      blob.style.background = color;
+      blob.style.borderRadius = '24px';
+      blob.style.boxShadow = `0 0 40px ${color}, inset 0 0 20px rgba(255,255,255,0.3)`;
+      stage.appendChild(blob);
+      setTimeout(() => blob.remove(), 850);
+    }
+  }
+
+  // ===== 配色 =====
+  const DRUM_COLORS   = ['#ff5252', '#ff7a4d', '#ff9f40', '#ffb74d'];
+  const CYMBAL_COLORS = ['#ffeb3b', '#fff176', '#ffffff', '#fff8a0'];
+  const BELL_COLORS   = ['#5c9eff', '#7986cb', '#ba68c8', '#80deea'];
+
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  // ===== 输入处理 =====
+  function handleKey(key) {
+    const k = key.toLowerCase();
+    let family, idx, color;
+
+    if (TOP_ROW.includes(k)) {
+      family = 'drum';
+      idx = TOP_ROW.indexOf(k);
+      color = pick(DRUM_COLORS);
+      playDrum(idx);
+    } else if (MID_ROW.includes(k)) {
+      family = 'cymbal';
+      idx = MID_ROW.indexOf(k);
+      color = pick(CYMBAL_COLORS);
+      playCymbal(idx);
+    } else if (BOT_ROW.includes(k)) {
+      family = 'bell';
+      idx = BOT_ROW.indexOf(k);
+      color = pick(BELL_COLORS);
+      playBell(idx);
+    } else {
+      // 数字 / 标点 / 其他键 → 随机分配一种
+      const fam = pick(['drum', 'cymbal', 'bell']);
+      family = fam;
+      const sub = (k.charCodeAt(0) || 0) % 8;
+      if (fam === 'drum')   { color = pick(DRUM_COLORS);   playDrum(sub); }
+      if (fam === 'cymbal') { color = pick(CYMBAL_COLORS); playCymbal(sub); }
+      if (fam === 'bell')   { color = pick(BELL_COLORS);   playBell(sub); }
+    }
+
+    spawnBlob(family, color);
+    flashBeat('beat-' + family);
+  }
+
+  function start() {
+    if (started) return;
+    started = true;
+    hint.classList.add('gone');
+    setTimeout(() => hint.remove(), 800);
+    ensureAudio();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey) return;
+    if (e.key === 'Escape') {
+      if (!document.fullscreenElement) location.href = '../../';
+      return;
+    }
+    e.preventDefault();
+    start();
+    if (e.key === 'f' || e.key === 'F') {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      }
+      return;
+    }
+    handleKey(e.key);
+  });
+
+  document.addEventListener('click', () => {
+    start();
+    handleKey(String.fromCharCode(65 + Math.floor(Math.random() * 26)));
+  });
+</script>
+</body>
+</html>

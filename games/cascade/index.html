@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Cascade · Cookie's Arcade</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0e27;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color 1200ms cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: -apple-system, "PingFang SC", sans-serif;
+  }
+  #stage {
+    position: fixed; inset: 0; overflow: hidden;
+  }
+
+  /* 全屏放射圆环 */
+  .wave {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    margin-left: -30px;
+    margin-top: -30px;
+    border-radius: 50%;
+    pointer-events: none;
+    border: 4px solid;
+    will-change: transform, opacity;
+    animation: wave-life 1600ms cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  }
+  @keyframes wave-life {
+    0%   { transform: scale(0);   opacity: 0; }
+    10%  { transform: scale(0.5); opacity: 0.9; }
+    100% { transform: scale(60);  opacity: 0; }
+  }
+
+  /* 中心 dot 反馈 */
+  .pulse {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    will-change: transform, opacity;
+    animation: pulse-life 700ms cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  }
+  @keyframes pulse-life {
+    0%   { transform: scale(0.3); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+
+  #back {
+    position: fixed; top: 0; right: 0;
+    width: 70px; height: 70px;
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    color: rgba(255, 255, 255, 0.18);
+    text-decoration: none;
+    transition: color 250ms, background 250ms;
+    mix-blend-mode: difference;
+  }
+  #back:hover {
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  #hint {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 22px;
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    transition: opacity 600ms;
+    mix-blend-mode: difference;
+  }
+  #hint.gone { opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<a id="back" href="../../">←</a>
+<div id="hint">按 任意键 让屏幕变色 · Esc 返回</div>
+
+<script>
+  // 9 色——比另几款更柔和/降饱和
+  const COLORS = [
+    '#d65a5a', // 红
+    '#d68a52', // 橙
+    '#d4be4d', // 黄
+    '#5fa86c', // 绿
+    '#4eaab4', // 青
+    '#5d83c4', // 蓝
+    '#9968b3', // 紫
+    '#d18ab2', // 粉
+    '#cccccc', // 浅灰
+  ];
+
+  const SCALE_HZ = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33];
+
+  const stage = document.getElementById('stage');
+  const hint = document.getElementById('hint');
+  let audioCtx = null;
+  let started = false;
+
+  function hash(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  // 柔和长音（比 keyboard smash 那版 decay 更长，更冥想）
+  function playSoft(freq) {
+    ensureAudio();
+    const now = audioCtx.currentTime;
+    // 主音（triangle 比 sine 略亮）
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.25, now + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 1.85);
+    // 五度泛音叠加（更丰满）
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.value = freq * 1.5;
+    gain2.gain.setValueAtTime(0, now);
+    gain2.gain.linearRampToValueAtTime(0.08, now + 0.06);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+    osc2.connect(gain2).connect(audioCtx.destination);
+    osc2.start(now);
+    osc2.stop(now + 1.45);
+  }
+
+  function spawnWave(color) {
+    const w = document.createElement('div');
+    w.className = 'wave';
+    w.style.borderColor = color;
+    document.body.appendChild(w);
+    setTimeout(() => w.remove(), 1700);
+
+    // 中心 pulse dot
+    const p = document.createElement('div');
+    p.className = 'pulse';
+    const size = 200;
+    p.style.width  = size + 'px';
+    p.style.height = size + 'px';
+    p.style.left = (window.innerWidth  / 2 - size / 2) + 'px';
+    p.style.top  = (window.innerHeight / 2 - size / 2) + 'px';
+    p.style.background = color;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 800);
+  }
+
+  function trigger(key) {
+    const idx = hash(key) % COLORS.length;
+    const color = COLORS[idx];
+    document.body.style.background = color;
+    playSoft(SCALE_HZ[idx % SCALE_HZ.length]);
+    spawnWave(color);
+  }
+
+  function start() {
+    if (started) return;
+    started = true;
+    hint.classList.add('gone');
+    setTimeout(() => hint.remove(), 800);
+    ensureAudio();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey) return;
+    if (e.key === 'Escape') {
+      if (!document.fullscreenElement) location.href = '../../';
+      return;
+    }
+    e.preventDefault();
+    start();
+    if (e.key === 'f' || e.key === 'F') {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      }
+      return;
+    }
+    trigger(e.key || e.code);
+  });
+
+  document.addEventListener('click', () => {
+    start();
+    trigger('click_' + Date.now());
+  });
+</script>
+</body>
+</html>
