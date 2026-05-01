@@ -114,7 +114,7 @@
 <body>
 <div id="stage"></div>
 <a id="back" href="../../">←</a>
-<div id="hint">移动 鼠标 戳破泡泡 · Esc 返回</div>
+<div id="hint">按 任意键 或 移动鼠标 戳破泡泡 · Esc 返回</div>
 
 <script>
   const COLORS = [
@@ -220,7 +220,7 @@
     return { cx, cy, r: b.size / 2 };
   }
 
-  // ===== 戳破检测 =====
+  // ===== 戳破检测（鼠标 hover） =====
   function popCheck() {
     if (mouseX < 0) return;
     const now = performance.now();
@@ -234,6 +234,33 @@
         popBubble(b, cx, cy);
       }
     }
+  }
+
+  // ===== 键盘戳破：戳屏幕最高的那个（最显眼）+ 立即补一个 =====
+  function popHighestAndSpawn() {
+    const now = performance.now();
+    let target = null;
+    let highestY = Infinity;
+    for (const b of liveBubbles) {
+      if (b.popping) continue;
+      const c = bubbleCenter(b, now);
+      if (c.cy < highestY) {
+        highestY = c.cy;
+        target = { b, cx: c.cx, cy: c.cy };
+      }
+    }
+    if (target) {
+      popBubble(target.b, target.cx, target.cy);
+    } else {
+      // 屏幕空 → 在屏幕中上方立即生成一个并爆开
+      const cx = rand(window.innerWidth * 0.2, window.innerWidth * 0.8);
+      const cy = rand(window.innerHeight * 0.2, window.innerHeight * 0.5);
+      const color = pick(COLORS);
+      spawnSplash(cx, cy, color);
+      playPop();
+    }
+    // 不管戳没戳到都补充一个新泡泡，保持画面活力
+    spawnBubble();
   }
 
   function popBubble(b, cx, cy) {
@@ -321,13 +348,17 @@
       if (!document.fullscreenElement) location.href = '../../';
       return;
     }
+    e.preventDefault();
     if (!started) start();
     if (e.key === 'f' || e.key === 'F') {
       const el = document.documentElement;
       if (!document.fullscreenElement && el.requestFullscreen) {
         el.requestFullscreen().catch(() => {});
       }
+      return;
     }
+    // 任意键戳破最高的泡泡（Cookie 拍键盘也能玩）
+    popHighestAndSpawn();
   });
 
   // 窗口尺寸变化清场
