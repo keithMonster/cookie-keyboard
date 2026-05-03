@@ -402,6 +402,7 @@
   });
   // iPad 触摸：每个手指都触发一次（多指齐戳很爽）
   document.addEventListener('touchstart', (e) => {
+    if (e.target.closest('#back')) return;
     handleFirstKey();
     for (const t of e.changedTouches) {
       spawnShape('touch_' + Date.now() + '_' + t.identifier, t.clientX, t.clientY);

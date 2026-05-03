@@ -229,20 +229,24 @@
     return { cx, cy, r: b.size / 2 };
   }
 
-  // ===== 戳破检测（鼠标 hover） =====
-  function popCheck() {
-    if (mouseX < 0) return;
+  // ===== 戳破检测（按坐标点） =====
+  function popAt(px, py) {
     const now = performance.now();
     for (let i = liveBubbles.length - 1; i >= 0; i--) {
       const b = liveBubbles[i];
       if (b.popping) continue;
       const { cx, cy, r } = bubbleCenter(b, now);
-      const dx = mouseX - cx;
-      const dy = mouseY - cy;
+      const dx = px - cx;
+      const dy = py - cy;
       if (dx * dx + dy * dy < r * r) {
         popBubble(b, cx, cy);
       }
     }
+  }
+  // 鼠标 hover 路径：用全局 mouseX/mouseY
+  function popCheck() {
+    if (mouseX < 0) return;
+    popAt(mouseX, mouseY);
   }
 
   // ===== 键盘戳破：戳屏幕最高的那个（最显眼）+ 立即补一个 =====
@@ -335,19 +339,18 @@
     if (!started) start();
     popCheck();
   });
-  document.addEventListener('touchmove', (e) => {
-    if (e.touches.length > 0) {
-      mouseX = e.touches[0].clientX;
-      mouseY = e.touches[0].clientY;
-      if (!started) start();
+  // iPad 多指：每根手指各做一次戳破检测（不再降维到 mouseX/mouseY）
+  document.addEventListener('touchstart', (e) => {
+    if (e.target.closest('#back')) return;
+    if (!started) start();
+    for (const t of e.changedTouches) {
+      popAt(t.clientX, t.clientY);
     }
   }, { passive: true });
-  document.addEventListener('touchstart', (e) => {
-    if (e.touches.length > 0) {
-      mouseX = e.touches[0].clientX;
-      mouseY = e.touches[0].clientY;
-      if (!started) start();
-      popCheck();
+  document.addEventListener('touchmove', (e) => {
+    if (!started) start();
+    for (const t of e.touches) {
+      popAt(t.clientX, t.clientY);
     }
   }, { passive: true });
 

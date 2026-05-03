@@ -220,6 +220,7 @@
   });
   // iPad 触摸——多指各算一次（连按多色更好玩）
   document.addEventListener('touchstart', (e) => {
+    if (e.target.closest('#back')) return;
     start();
     for (const t of e.changedTouches) {
       trigger('touch_' + t.identifier + '_' + Date.now());

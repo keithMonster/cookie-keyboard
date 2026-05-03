@@ -373,6 +373,7 @@
     handleAt(e.clientX, e.clientY);
   });
   document.addEventListener('touchstart', (e) => {
+    if (e.target.closest('#back')) return;
     start();
     for (const t of e.changedTouches) {
       handleAt(t.clientX, t.clientY);
